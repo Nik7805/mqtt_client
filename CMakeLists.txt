@@ -23,15 +23,20 @@ project(mqtt_client VERSION 0.1.0)
 
 set(SOURCE_EXE 
 src/main.cpp
+lib/BMP280_driver/bmp280.c
+src/BMP280/bmp280_app.cpp
 )
 
 set(BUILD_SHARED_LIBS NO)
+set(CMAKE_BUILD_TYPE "Debug")
 set (CMAKE_CXX_STANDARD 17)
 
 include_directories(
 ${PROJECT_SOURCE_DIR}/lib/c-periphery/src
 ${PROJECT_SOURCE_DIR}/src/
+${PROJECT_SOURCE_DIR}/src/BMP280
 ${PROJECT_SOURCE_DIR}/lib/mosquitto/include
+${PROJECT_SOURCE_DIR}/lib/BMP280_driver
 )
 
 add_executable(mqtt_client ${SOURCE_EXE})

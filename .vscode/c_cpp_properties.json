@@ -7,6 +7,8 @@
                 "${workspaceFolder}/**",
                 "${workspaceFolder}/src/",
                 "${workspaceFolder}/lib/mosquitto/include",
+                "${workspaceFolder}/lib/BMP280_driver",
+                "${workspaceFolder}/src/BMP280",
                 "/opt/gcc-arm-10.3-2021.07-x86_64-arm-none-linux-gnueabihf/arm-none-linux-gnueabihf/include/c++/10.3.1"
             ],
             "defines": [],

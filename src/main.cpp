@@ -12,6 +12,7 @@
 #include "i2c.h"
 #include "HMC5883L.hpp"
 #include "mosquitto.h"
+#include "bmp280_app.hpp"
 
 using namespace std;
 static HMC5883L* magnetSensor;
@@ -72,6 +73,14 @@ void ProcessParams(int numParams, char** params)
     }
 }
 
+template<class T>
+void PublishData(mosquitto* mosq, std::string topic, T data, bool retain)
+{
+    std::string sData = to_string(data);
+    mosquitto_publish(mosq, NULL, topic.c_str(), sData.length(), sData.c_str(), 0, retain);
+}
+
+
 int main(int numParams, char** params) 
 {
     struct mosquitto *mosq;
@@ -82,10 +91,6 @@ int main(int numParams, char** params)
 
     std::cout << "Creating new mqtt cient\n";
 	mosq = mosquitto_new(NULL, true, NULL);
-	if(mosq == NULL){
-		fprintf(stderr, "Error: Out of memory.\n");
-		return 1;
-	}
 
 	mosquitto_connect_callback_set(mosq, on_connect);
     mosquitto_message_callback_set(mosq, on_message);
@@ -115,29 +120,47 @@ int main(int numParams, char** params)
     try
     {
         magnetSensor = new HMC5883L("/dev/i2c-2");
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        if(int8_t i = BMP280_Init("/dev/i2c-2"); i != 0)
+        {
+            fprintf(stderr, "BMP280 init error: %d\n", i);
+            exit(1);
+        }
 
         ProcessParams(numParams, params);
-        std::string str = "";
+        std::string sMagnetData  = "";
+        std::string sTemperature = "";
+        std::string sPressure    = "";
         while(true)
         {
             if(magnetSensor->Measure())
             {
                 HMC5883L::PlainData_t plainData = magnetSensor->GetPlainData(HMC5883L::Axes::X, HMC5883L::Axes::Z);
-                str = "X:" + std::to_string(magnetSensor->GetMagnitude(HMC5883L::Axes::X)) + 
-                     " Y:" + std::to_string(magnetSensor->GetMagnitude(HMC5883L::Axes::Y)) + 
-                     " Z:" + std::to_string(magnetSensor->GetMagnitude(HMC5883L::Axes::Z)) +
-                     "\n" +
-                     "XZ mag:" + std::to_string(plainData.absValue) + "; angle:" + std::to_string(plainData.degrees);
+                
+                PublishData(mosq, "Home/magnet/X",  magnetSensor->GetMagnitude(HMC5883L::Axes::X), false);
+                PublishData(mosq, "Home/magnet/Y",  magnetSensor->GetMagnitude(HMC5883L::Axes::Y), false);
+                PublishData(mosq, "Home/magnet/Z",  magnetSensor->GetMagnitude(HMC5883L::Axes::Z), false);
+                PublishData(mosq, "Home/magnet/XZ_abs", plainData.absValue, false);
+                PublishData(mosq, "Home/magnet/XZ_ang", plainData.degrees,  false);
             }
             else
             {
-                str = "Sensor overload";
+                fprintf(stderr, "HMC5883L overload\n");
             }
 
-            if(int rc = mosquitto_publish(mosq, NULL, "Home/magnet/value", str.length(), str.c_str(), 2, false); rc != MOSQ_ERR_SUCCESS)
+            if(BMP280_Measure())
             {
-                fprintf(stderr, "Error publishing: %s\n", mosquitto_strerror(rc));
+                sTemperature = to_string(BMP280_GetTemperature());
+                sPressure    = to_string(BMP280_GetPressure());
             }
+            else
+            {
+                fprintf(stderr, "BMP280 measure error\n");
+                sTemperature = "NaN";
+                sPressure    = "NaN";
+            }
+            mosquitto_publish(mosq, NULL, "Home/temperature", sTemperature.length(), sTemperature.c_str(), 2, false);
+            mosquitto_publish(mosq, NULL, "Home/pressure",    sPressure.length(),    sPressure.c_str(),    2, false);
             
             std::this_thread::sleep_for(std::chrono::milliseconds(sleep_ms));
         }

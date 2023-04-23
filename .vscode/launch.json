@@ -5,7 +5,7 @@
     "version": "0.2.0",
  "configurations": [
  {
- "name": "GDB debug - custom",
+ "name": "GDB remoute debug",
  "type": "cppdbg",
  "request": "launch",
  "program": "${workspaceFolder}/build/mqtt_client",
